@@ -34,9 +34,10 @@ func main() {
 
 // Config contains the program's configuration.
 type Config struct {
-	PicturesDir string         `json:"pictures_dir"`
-	Interval    xjson.Duration `json:"interval"`
-	Editor      string         `json:"editor"`
+	PicturesDir   string         `json:"pictures_dir"`
+	Interval      xjson.Duration `json:"interval"`
+	Editor        string         `json:"editor"`
+	ChangeOnStart bool           `json:"change_on_start"`
 }
 
 func getRandomPicture(dirname string) (string, error) {
@@ -129,9 +130,12 @@ func onReady(configFile string, cfg *Config) {
 	if cfg.Editor != "" {
 		editor = cfg.Editor
 	}
+	if cfg.ChangeOnStart {
+		changeBG(cfg)
+	}
 
 	go func() {
-		timer := time.NewTimer(time.Duration(cfg.Interval))
+		timer := time.NewTicker(time.Duration(cfg.Interval))
 		log.Printf("Changing background picture every %s", cfg.Interval)
 		for {
 			select {
