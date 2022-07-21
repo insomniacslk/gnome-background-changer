@@ -56,6 +56,7 @@ func getRandomPicture(dirname string) (string, error) {
 	if len(pictures) == 0 {
 		return "", fmt.Errorf("no pictures found")
 	}
+	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(pictures), func(i, j int) { pictures[i], pictures[j] = pictures[j], pictures[i] })
 	return path.Join(dirname, pictures[0]), nil
 }
@@ -108,7 +109,7 @@ func changeBG(cfg *Config) {
 
 func onReady(configFile string, cfg *Config) {
 	systray.SetIcon(Icon)
-	systray.SetTitle("RandBG")
+	//systray.SetTitle("RandBG")
 	systray.SetTooltip("Change background randomly")
 	mChange := systray.AddMenuItem("Change background now", "Change background with a randomly picked one from your configured directory")
 	var mInterval *systray.MenuItem
