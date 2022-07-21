@@ -1,25 +1,25 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/getlantern/systray"
-	"github.com/insomniacslk/ipapi"
-	"github.com/insomniacslk/openweathermap"
-	"github.com/insomniacslk/openweathermap/icons"
 	"github.com/insomniacslk/xjson"
 	"github.com/kirsle/configdir"
-	"googlemaps.github.io/maps"
 )
 
-const progname = "wea"
+const progname = "bgchanger"
+
+var supportedExtensions = []string{"png", "jpg"}
 
 func main() {
 	configFile, cfg, err := loadConfig()
@@ -34,14 +34,30 @@ func main() {
 
 // Config contains the program's configuration.
 type Config struct {
-	Locations            []string       `json:"locations"`
-	GoogleMapsAPIKey     string         `json:"googlemaps_api_key"`
-	OpenweathermapAPIKey string         `json:"openweathermap_api_key"`
-	Interval             xjson.Duration `json:"interval"`
-	Language             string         `json:"language"`
-	Units                string         `json:"units"`
-	Debug                bool           `json:"debug"`
-	Editor               string         `json:"editor"`
+	PicturesDir string         `json:"pictures_dir"`
+	Interval    xjson.Duration `json:"interval"`
+	Editor      string         `json:"editor"`
+}
+
+func getRandomPicture(dirname string) (string, error) {
+	files, err := ioutil.ReadDir(dirname)
+	if err != nil {
+		return "", fmt.Errorf("failed to read directory '%s': %w", dirname, err)
+	}
+	var pictures []string
+	for _, f := range files {
+		for _, ext := range supportedExtensions {
+			if strings.HasSuffix(strings.ToLower(f.Name()), ext) {
+				pictures = append(pictures, f.Name())
+				break
+			}
+		}
+	}
+	if len(pictures) == 0 {
+		return "", fmt.Errorf("no pictures found")
+	}
+	rand.Shuffle(len(pictures), func(i, j int) { pictures[i], pictures[j] = pictures[j], pictures[i] })
+	return path.Join(dirname, pictures[0]), nil
 }
 
 func loadConfig() (string, *Config, error) {
@@ -68,153 +84,43 @@ func loadConfig() (string, *Config, error) {
 	}
 
 	// sanity checks
-	if len(cfg.Locations) == 0 {
-		return configFile, nil, fmt.Errorf("no locations are configured")
-	}
-	if cfg.OpenweathermapAPIKey == "" {
-		return configFile, nil, fmt.Errorf("openweathermap_api_key cannot be empty")
-	}
-	if cfg.GoogleMapsAPIKey == "" {
-		return configFile, nil, fmt.Errorf("googlemaps_api_key cannot be empty")
+	if cfg.PicturesDir == "" {
+		return configFile, nil, fmt.Errorf("pictures_dir cannot be empty")
 	}
 
 	return configFile, &cfg, nil
 }
 
-type location struct {
-	name     string
-	lat, lon float64
-}
-
-func getLocation(cfg *Config, locName string) (*location, error) {
-	client, err := maps.NewClient(maps.WithAPIKey(cfg.GoogleMapsAPIKey))
+func changeBG(cfg *Config) {
+	filename, err := getRandomPicture(cfg.PicturesDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Maps client: %w", err)
+		log.Printf("Error: cannot get random picture: %v", err)
+		return
 	}
-	r := maps.GeocodingRequest{
-		Address: locName,
-	}
-	resp, err := client.Geocode(context.Background(), &r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to geocode location: %w", err)
-	}
-	if len(resp) == 0 {
-		return nil, fmt.Errorf("location not found")
-	}
-	return &location{
-		name: resp[0].AddressComponents[0].LongName,
-		lat:  resp[0].Geometry.Location.Lat,
-		lon:  resp[0].Geometry.Location.Lng,
-	}, nil
-}
-
-func getWeather(cfg *Config, loc *location) (*openweathermap.Weather, error) {
-	return openweathermap.Request(
-		cfg.OpenweathermapAPIKey,
-		loc.lat,
-		loc.lon,
-		[]openweathermap.Exclude{
-			openweathermap.Minutely,
-			openweathermap.Hourly,
-			openweathermap.Daily,
-			openweathermap.Alerts,
-		},
-		openweathermap.Units(cfg.Units),
-		openweathermap.Lang(cfg.Language),
-		cfg.Debug,
-	)
-}
-
-type weatherItem struct {
-	menuitem *systray.MenuItem
-	loc      location
-}
-
-func refreshWeather(cfg *Config, curLoc *location, items []weatherItem) {
-	tempUnit := openweathermap.TempUnits[openweathermap.Units(cfg.Units)]
-
-	curLocWea, err := getWeather(cfg, curLoc)
-	if err != nil {
-		systray.SetTitle("failed to get weather")
-		log.Printf("failed to get weather for '%s': %v", curLoc.name, err)
-		// try the other locations without stopping
+	cmd := exec.Command("gsettings", "set", "org.gnome.desktop.background", "picture-uri", "file://"+filename)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Printf("Error when changing background: %v", err)
 	} else {
-		systray.SetTitle(fmt.Sprintf("%s: %.01f%s %s", curLoc.name, curLocWea.Current.Temp, tempUnit, curLocWea.Current.Weather[0].Description))
-		systray.SetIcon(icons.Icons[curLocWea.Current.Weather[0].Icon])
+		log.Printf("Background changed to '%s'", filename)
 	}
-	for _, item := range items {
-		wea, err := getWeather(cfg, &item.loc)
-		if err != nil {
-			log.Printf("failed to get weather for '%s': %v", item.loc.name, err)
-			// try the other locations
-			continue
-		}
-		text := fmt.Sprintf(
-			"%s: %.02f%s %s",
-			item.loc.name,
-			wea.Current.Temp, tempUnit,
-			wea.Current.Weather[0].Description,
-		)
-		item.menuitem.SetTitle(text)
-	}
-}
-
-func getCurrentLocation() (string, error) {
-	resp, err := ipapi.Get(nil, nil)
-	if err != nil {
-		return "", fmt.Errorf("ipapi.Get failed: %w", err)
-	}
-	return fmt.Sprintf("%s, %s", resp.City, resp.CountryCode), nil
 }
 
 func onReady(configFile string, cfg *Config) {
-	curLocName, err := getCurrentLocation()
-	if err != nil {
-		log.Fatalf("Cannot get current location: %v", err)
-	}
-
-	systray.SetIcon(icons.Icon01d)
-	systray.SetTitle("Weather")
-	systray.SetTooltip("Weather app")
-
-	mRefresh := systray.AddMenuItem("Refresh weather now", "Force a refresh of the weather information for all the locations")
+	systray.SetIcon(Icon)
+	systray.SetTitle("RandBG")
+	systray.SetTooltip("Change background randomly")
+	mChange := systray.AddMenuItem("Change background now", "Change background with a randomly picked one from your configured directory")
 	var mInterval *systray.MenuItem
 	if cfg.Interval == 0 {
 	} else {
-		mInterval = systray.AddMenuItem(fmt.Sprintf("Weather will refresh every %s", cfg.Interval), "The weather information will automatically refresh at the configured interval")
+		mInterval = systray.AddMenuItem(fmt.Sprintf("Background will change every %s", cfg.Interval), "The background will automatically change at the configured interval")
 	}
 	mInterval.Disable()
 	mEdit := systray.AddMenuItem("Edit config", "Open configuration file for editing")
-	systray.AddSeparator()
+	mQuit := systray.AddMenuItem("Quit", "Quit the whole app")
 
 	// Sets the icon of a menu item. Only available on Mac and Windows.
-
-	var items []weatherItem
-	curLoc, err := getLocation(cfg, curLocName)
-	if err != nil {
-		log.Fatalf("Failed to get location '%s': %v", curLocName, err)
-	}
-
-	for _, locName := range cfg.Locations {
-		loc, err := getLocation(cfg, locName)
-		if err != nil {
-			log.Fatalf("Failed to get location '%s': %v", locName, err)
-		}
-		items = append(items, weatherItem{
-			loc: location{
-				name: loc.name,
-				lat:  loc.lat,
-				lon:  loc.lon,
-			},
-			menuitem: systray.AddMenuItem(
-				fmt.Sprintf("%s: not loaded yet", loc.name),
-				fmt.Sprintf("Weather for %s", loc.name),
-			),
-		},
-		)
-	}
-	systray.AddSeparator()
-	mQuit := systray.AddMenuItem("Quit", "Terminate the app")
 	mQuit.SetIcon(Icon)
 
 	// sets the editor
@@ -223,10 +129,9 @@ func onReady(configFile string, cfg *Config) {
 		editor = cfg.Editor
 	}
 
-	refreshWeather(cfg, curLoc, items)
 	go func() {
 		timer := time.NewTimer(time.Duration(cfg.Interval))
-		log.Printf("Refreshing weather every %s", cfg.Interval)
+		log.Printf("Changing background picture every %s", cfg.Interval)
 		for {
 			select {
 			case <-mQuit.ClickedCh:
@@ -238,10 +143,10 @@ func onReady(configFile string, cfg *Config) {
 				if err := cmd.Run(); err != nil {
 					log.Printf("Error when opening editor: %v", err)
 				}
-			case <-mRefresh.ClickedCh:
-				refreshWeather(cfg, curLoc, items)
+			case <-mChange.ClickedCh:
+				changeBG(cfg)
 			case <-timer.C:
-				refreshWeather(cfg, curLoc, items)
+				changeBG(cfg)
 			}
 		}
 	}()
