@@ -22,6 +22,7 @@ const progname = "bgchanger"
 var supportedExtensions = []string{"png", "jpg"}
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	configFile, cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("Failed to open config file: %v", err)
@@ -57,7 +58,6 @@ func getRandomPicture(dirname string) (string, error) {
 	if len(pictures) == 0 {
 		return "", fmt.Errorf("no pictures found")
 	}
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(pictures), func(i, j int) { pictures[i], pictures[j] = pictures[j], pictures[i] })
 	return path.Join(dirname, pictures[0]), nil
 }
