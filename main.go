@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/getlantern/systray"
+	"github.com/insomniacslk/editor"
 	"github.com/insomniacslk/xjson"
 	"github.com/kirsle/configdir"
 )
@@ -20,6 +22,9 @@ import (
 const progname = "bgchanger"
 
 var supportedExtensions = []string{"png", "jpg"}
+
+//go:embed config.json.example
+var exampleConfig []byte
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -77,9 +82,20 @@ func loadConfig() (string, *Config, error) {
 	data, err := os.ReadFile(configFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return configFile, &cfg, nil
+			// create a template file and open it with the default editor
+			if err := editor.Open(configFile); err != nil {
+				return configFile, &cfg, fmt.Errorf("failed to create config file: %w", err)
+			}
+			// re-read the config file
+			data, err = os.ReadFile(configFile)
+			if err != nil {
+				return configFile, &cfg, fmt.Errorf("failed to read config file: %w", err)
+			}
+			// after this point, the newly created config file will be parsed by
+			// the rest of this function.
+		} else {
+			return configFile, nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		return configFile, nil, fmt.Errorf("failed to open '%s': %w", configFile, err)
 	}
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return configFile, nil, fmt.Errorf("failed to unmarshal config file: %w", err)
@@ -117,8 +133,8 @@ func onReady(configFile string, cfg *Config) {
 	if cfg.Interval == 0 {
 	} else {
 		mInterval = systray.AddMenuItem(fmt.Sprintf("Background will change every %s", cfg.Interval), "The background will automatically change at the configured interval")
+		mInterval.Disable()
 	}
-	mInterval.Disable()
 	mEdit := systray.AddMenuItem("Edit config", "Open configuration file for editing")
 	mQuit := systray.AddMenuItem("Quit", "Quit the whole app")
 
@@ -126,32 +142,41 @@ func onReady(configFile string, cfg *Config) {
 	mQuit.SetIcon(Icon)
 
 	// sets the editor
-	editor := "xdg-open"
 	if cfg.Editor != "" {
-		editor = cfg.Editor
+		editor.Set(cfg.Editor)
 	}
 	if cfg.ChangeOnStart {
 		changeBG(cfg)
 	}
 
 	go func() {
-		timer := time.NewTicker(time.Duration(cfg.Interval))
-		log.Printf("Changing background picture every %s", cfg.Interval)
+		var (
+			timer       *time.Ticker
+			ignoreTimer = false
+		)
+		if cfg.Interval > 0 {
+			timer = time.NewTicker(time.Duration(cfg.Interval))
+			log.Printf("Changing background picture every %s", cfg.Interval)
+		} else {
+			// a non-positive interval means "don't change background". This
+			// creates a ticker with a valid time, but it will be ignored
+			timer = time.NewTicker(time.Hour)
+			ignoreTimer = true
+		}
 		for {
 			select {
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 			case <-mEdit.ClickedCh:
-				cmd := exec.Command(editor, configFile)
-				log.Printf("Executing %v", cmd)
-				cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-				if err := cmd.Run(); err != nil {
-					log.Printf("Error when opening editor: %v", err)
+				if err := editor.Open(configFile); err != nil {
+					log.Printf("Error opening config file: %v", err)
 				}
 			case <-mChange.ClickedCh:
 				changeBG(cfg)
 			case <-timer.C:
-				changeBG(cfg)
+				if !ignoreTimer {
+					changeBG(cfg)
+				}
 			}
 		}
 	}()

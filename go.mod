@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/getlantern/systray v1.2.1
+	github.com/insomniacslk/editor v0.0.0-20220803222208-57a076b919d7
 	github.com/insomniacslk/xjson v0.0.0-20210106140854-1589ccfd1a1a
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 )

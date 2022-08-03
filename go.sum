@@ -16,6 +16,10 @@ github.com/getlantern/systray v1.2.1 h1:udsC2k98v2hN359VTFShuQW6GGprRprw6kD6539J
 github.com/getlantern/systray v1.2.1/go.mod h1:AecygODWIsBquJCJFop8MEQcJbWFfw/1yWbVabNgpCM=
 github.com/go-stack/stack v1.8.0 h1:5SgMzNM5HxrEjV0ww2lTmX6E2Izsfxas4+YHWRs3Lsk=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
+github.com/insomniacslk/editor v0.0.0-20220803214137-e91f8a683d12 h1:ArgeNWa/uOhnpfQUOTOqc+WuavZ67olxmZ9wy0mce2s=
+github.com/insomniacslk/editor v0.0.0-20220803214137-e91f8a683d12/go.mod h1:hi6q5THJQhFuEh/v3ID4FEpxUAoIXw8XOehLa+rJxs8=
+github.com/insomniacslk/editor v0.0.0-20220803222208-57a076b919d7 h1:5Fl2LcGWM5hmoGl0pOZRO4t85wT31CyYnTJF57d1m0o=
+github.com/insomniacslk/editor v0.0.0-20220803222208-57a076b919d7/go.mod h1:hi6q5THJQhFuEh/v3ID4FEpxUAoIXw8XOehLa+rJxs8=
 github.com/insomniacslk/xjson v0.0.0-20210106140854-1589ccfd1a1a h1:SnoF1lbXJyorSE5e8thJwM4OSsmhx2aEOSb+tsH3aho=
 github.com/insomniacslk/xjson v0.0.0-20210106140854-1589ccfd1a1a/go.mod h1:G8c61yEjNgzQNF0lOvul8ls5IHE/MxbGx7M98ADBVEA=
 github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f h1:dKccXx7xA56UNqOcFIbuqFjAWPVtP688j5QMgmo6OHU=
