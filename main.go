@@ -109,13 +109,32 @@ func loadConfig() (string, *Config, error) {
 	return configFile, &cfg, nil
 }
 
+func isDarkTheme() bool {
+	out, err := exec.Command("gsettings", "get", "org.gnome.desktop.interface", "gtk-theme").Output()
+	if err != nil {
+		log.Printf("Warning: failed to get `gtk-theme` property: %v", err)
+		return false
+	}
+	themeName := strings.Trim(
+		strings.TrimSpace(string(out)),
+		"'",
+	)
+	return strings.HasSuffix(themeName, "-dark")
+
+}
+
 func changeBG(cfg *Config) {
 	filename, err := getRandomPicture(cfg.PicturesDir)
 	if err != nil {
 		log.Printf("Error: cannot get random picture: %v", err)
 		return
 	}
-	cmd := exec.Command("gsettings", "set", "org.gnome.desktop.background", "picture-uri", "file://"+filename)
+	gCmd := "picture-uri"
+	if isDarkTheme() {
+		gCmd = "picture-uri-dark"
+	}
+	cmd := exec.Command("gsettings", "set", "org.gnome.desktop.background", gCmd, "file://"+filename)
+	log.Printf("Executing command: %s", cmd)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Printf("Error when changing background: %v", err)
