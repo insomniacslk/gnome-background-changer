@@ -155,6 +155,7 @@ func onReady(configFile string, cfg *Config) {
 		mInterval.Disable()
 	}
 	mEdit := systray.AddMenuItem("Edit config", "Open configuration file for editing")
+	mOpen := systray.AddMenuItem("Show backgrounds directory", "Show the directory containing the background images")
 	mQuit := systray.AddMenuItem("Quit", "Quit the whole app")
 
 	// Sets the icon of a menu item. Only available on Mac and Windows.
@@ -189,6 +190,12 @@ func onReady(configFile string, cfg *Config) {
 			case <-mEdit.ClickedCh:
 				if err := editor.Open(configFile); err != nil {
 					log.Printf("Error opening config file: %v", err)
+				}
+			case <-mOpen.ClickedCh:
+				cmd := exec.Command("xdg-open", cfg.PicturesDir)
+				cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+				if err := cmd.Run(); err != nil {
+					log.Printf("Error opening background directory: %v", err)
 				}
 			case <-mChange.ClickedCh:
 				changeBG(cfg)
