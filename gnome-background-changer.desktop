@@ -1,0 +1,16 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+
+Name=gnome-background-changer
+GenericName=GNOME Background Changer
+Comment=GNOME widget to automatically change the desktop background from a custom directory
+Categories=System;GNOME;GTK;
+Keywords=gnome;background;image;
+
+Icon=gnome-background-changer
+Exec=gnome-background-changer
+Terminal=false
+
+SingleMainWindow=true
+X-GNOME-UsesNotifications=true
